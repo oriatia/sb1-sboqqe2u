@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { 
   Mail, 
@@ -7,14 +8,14 @@ import {
   RefreshCw, 
   CheckCircle, 
   AlertTriangle,
-  FileText,
   Sparkles,
   Loader2
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Email, InvoiceExtraction } from '../types';
-import { requestExtraction } from '../lib/extractApi';
+import { extractGmailMessage, requestExtraction } from '../lib/api';
 import ExtractionResultCard from './ExtractionResultCard';
+import GmailPanel from './GmailPanel';
 
 type ExtractionState =
   | { status: 'loading' }
@@ -22,10 +23,37 @@ type ExtractionState =
   | { status: 'error'; message: string };
 
 const EmailList: React.FC = () => {
-  const { emails, invoices, isLoading, addInvoiceFromExtraction } = useAppStore();
+  const {
+    emails,
+    invoices,
+    isLoading,
+    error,
+    gmail,
+    addInvoiceFromExtraction,
+    fetchEmails,
+    fetchGmailStatus,
+    fetchInvoices,
+    scanGmailNow,
+  } = useAppStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [extractions, setExtractions] = useState<Record<string, ExtractionState>>({});
   const [isScanning, setIsScanning] = useState(false);
+  const [notice, setNotice] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const gmailConnected = Boolean(gmail?.connected);
+
+  // Back from Google's consent screen
+  useEffect(() => {
+    const result = searchParams.get('gmail');
+    if (!result) return;
+    if (result === 'connected') {
+      setNotice({ kind: 'success', text: 'Gmail connected.' });
+      fetchGmailStatus().then(() => Promise.all([fetchEmails(), fetchInvoices()]));
+    } else {
+      setNotice({ kind: 'error', text: `Could not connect Gmail: ${searchParams.get('reason') ?? 'unknown error'}` });
+    }
+    setSearchParams({}, { replace: true });
+  }, [searchParams, setSearchParams, fetchEmails, fetchGmailStatus, fetchInvoices]);
 
   const hasInvoice = (emailId: string) => invoices.some(inv => inv.emailId === emailId);
   const unprocessedEmails = emails.filter(
@@ -35,12 +63,15 @@ const EmailList: React.FC = () => {
   const extractEmail = async (email: Email) => {
     setExtractions(prev => ({ ...prev, [email.id]: { status: 'loading' } }));
     try {
-      const extraction = await requestExtraction({
-        from: email.from,
-        subject: email.subject,
-        receivedAt: email.receivedAt,
-        body: email.snippet,
-      });
+      const extraction =
+        email.source === 'gmail'
+          ? await extractGmailMessage(email.id)
+          : await requestExtraction({
+              from: email.from,
+              subject: email.subject,
+              receivedAt: email.receivedAt,
+              body: email.snippet,
+            });
       setExtractions(prev => ({ ...prev, [email.id]: { status: 'done', extraction } }));
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Extraction failed';
@@ -50,11 +81,40 @@ const EmailList: React.FC = () => {
 
   const scanInbox = async () => {
     setIsScanning(true);
-    // Sequential keeps the demo well under API rate limits
-    for (const email of unprocessedEmails) {
-      await extractEmail(email);
+    setNotice(null);
+    try {
+      if (gmailConnected) {
+        // The server saves confident invoices itself, same as the daily scan
+        const result = await scanGmailNow();
+        setNotice({
+          kind: result.failed ? 'error' : 'success',
+          text:
+            `Checked ${result.checked} new email${result.checked === 1 ? '' : 's'}: ` +
+            `saved ${result.saved.length} invoice${result.saved.length === 1 ? '' : 's'}` +
+            (result.skipped ? `, ${result.skipped} not invoices or unclear` : '') +
+            (result.failed ? `, ${result.failed} failed (will retry next scan)` : '') +
+            '.',
+        });
+      } else {
+        // Sequential keeps the demo well under API rate limits
+        for (const email of unprocessedEmails) {
+          await extractEmail(email);
+        }
+      }
+    } catch (err) {
+      setNotice({ kind: 'error', text: err instanceof Error ? err.message : 'Scan failed' });
+    } finally {
+      setIsScanning(false);
     }
-    setIsScanning(false);
+  };
+
+  const saveExtraction = async (email: Email, extraction: InvoiceExtraction) => {
+    try {
+      await addInvoiceFromExtraction(extraction, email.id);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not save the invoice';
+      setExtractions(prev => ({ ...prev, [email.id]: { status: 'error', message } }));
+    }
   };
   
   const filteredEmails = emails.filter(email => {
@@ -116,7 +176,7 @@ const EmailList: React.FC = () => {
         <ExtractionResultCard
           extraction={state.extraction}
           saved={hasInvoice(email.id)}
-          onSave={() => addInvoiceFromExtraction(state.extraction, email.id)}
+          onSave={() => saveExtraction(email, state.extraction)}
         />
       </div>
     );
@@ -152,19 +212,24 @@ const EmailList: React.FC = () => {
                 type="button"
                 onClick={scanInbox}
                 className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={isScanning || unprocessedEmails.length === 0}
-                title="Run the AI extractor on every email that has no invoice yet"
+                disabled={isScanning || (!gmailConnected && unprocessedEmails.length === 0)}
+                title={
+                  gmailConnected
+                    ? 'Extract and save invoices from new Gmail messages'
+                    : 'Run the AI extractor on every email that has no invoice yet'
+                }
               >
                 {isScanning ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
                   <Sparkles className="h-4 w-4 mr-2" />
                 )}
-                Scan with AI ({unprocessedEmails.length})
+                {gmailConnected ? 'Scan Gmail now' : `Scan with AI (${unprocessedEmails.length})`}
               </button>
               <button
                 type="button"
                 className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                onClick={() => fetchEmails()}
                 disabled={isLoading}
               >
                 <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
@@ -174,6 +239,12 @@ const EmailList: React.FC = () => {
           </div>
         </div>
         
+        {error && (
+          <div className="flex items-center border-t border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700 sm:px-6">
+            <AlertTriangle className="mr-2 h-4 w-4 flex-shrink-0" />
+            {error}
+          </div>
+        )}
         <div className="border-t border-gray-200">
           <ul className="divide-y divide-gray-200">
             {filteredEmails.length > 0 ? (
@@ -245,64 +316,7 @@ const EmailList: React.FC = () => {
         </div>
       </div>
       
-      <div className="mt-6 bg-white shadow rounded-lg overflow-hidden">
-        <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
-          <h3 className="text-lg leading-6 font-medium text-gray-900">
-            Connect Email Account
-          </h3>
-          <p className="mt-1 max-w-2xl text-sm text-gray-500">
-            Add your email accounts to automatically extract invoices
-          </p>
-        </div>
-        <div className="px-4 py-5 sm:p-6">
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3">
-            <div className="border rounded-lg p-4 hover:border-indigo-500 hover:shadow-sm cursor-pointer transition-all">
-              <div className="flex items-center justify-center h-12 w-12 rounded-md bg-indigo-500 text-white mx-auto">
-                <Mail className="h-6 w-6" />
-              </div>
-              <div className="mt-4 text-center">
-                <h3 className="text-lg font-medium text-gray-900">Gmail</h3>
-                <p className="mt-2 text-sm text-gray-500">
-                  Connect your Google account to import invoices from Gmail
-                </p>
-                <button className="mt-4 inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                  Connect
-                </button>
-              </div>
-            </div>
-            
-            <div className="border rounded-lg p-4 hover:border-indigo-500 hover:shadow-sm cursor-pointer transition-all">
-              <div className="flex items-center justify-center h-12 w-12 rounded-md bg-blue-500 text-white mx-auto">
-                <Mail className="h-6 w-6" />
-              </div>
-              <div className="mt-4 text-center">
-                <h3 className="text-lg font-medium text-gray-900">Outlook</h3>
-                <p className="mt-2 text-sm text-gray-500">
-                  Connect your Microsoft account to import invoices from Outlook
-                </p>
-                <button className="mt-4 inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                  Connect
-                </button>
-              </div>
-            </div>
-            
-            <div className="border rounded-lg p-4 hover:border-indigo-500 hover:shadow-sm cursor-pointer transition-all">
-              <div className="flex items-center justify-center h-12 w-12 rounded-md bg-gray-800 text-white mx-auto">
-                <FileText className="h-6 w-6" />
-              </div>
-              <div className="mt-4 text-center">
-                <h3 className="text-lg font-medium text-gray-900">IMAP</h3>
-                <p className="mt-2 text-sm text-gray-500">
-                  Connect any email account using IMAP settings
-                </p>
-                <button className="mt-4 inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
-                  Connect
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <GmailPanel notice={notice} />
     </div>
   );
 };

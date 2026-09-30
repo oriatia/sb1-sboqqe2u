@@ -19,6 +19,7 @@ export interface Email {
   hasAttachment: boolean;
   isRead: boolean;
   snippet: string;
+  source?: 'gmail' | 'demo';
 }
 
 export interface User {
@@ -56,4 +57,20 @@ export interface ExtractionInput {
     mediaType: string;
     data: string;
   };
+}
+
+export interface GmailStatus {
+  configured: boolean;
+  connected: boolean;
+  email?: string;
+  lastScanAt?: string;
+  schedule: { enabled: boolean; time: string; timezone: string };
+}
+
+export interface ScanResult {
+  checked: number;
+  saved: Invoice[];
+  skipped: number;
+  failed: number;
+  finishedAt: string;
 }

@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { z } from 'zod';
+import { HttpError } from './errors';
 
 const MODEL = process.env.ANTHROPIC_MODEL ?? 'claude-opus-5-5';
 
@@ -52,15 +53,6 @@ export interface ExtractRequest {
   };
 }
 
-export class ExtractionError extends Error {
-  constructor(
-    message: string,
-    public status = 422,
-  ) {
-    super(message);
-  }
-}
-
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'] as const;
 type ImageType = (typeof IMAGE_TYPES)[number];
 
@@ -97,7 +89,7 @@ function buildContent(req: ExtractRequest): Anthropic.Beta.BetaContentBlockParam
         source: { type: 'base64', media_type: mediaType as ImageType, data },
       });
     } else {
-      throw new ExtractionError(`Unsupported attachment type: ${mediaType}. Use PDF, PNG, JPEG, GIF or WebP.`, 400);
+      throw new HttpError(`Unsupported attachment type: ${mediaType}. Use PDF, PNG, JPEG, GIF or WebP.`, 400);
     }
   }
 
@@ -119,7 +111,7 @@ function buildContent(req: ExtractRequest): Anthropic.Beta.BetaContentBlockParam
 
 export async function extractInvoice(req: ExtractRequest): Promise<Extraction> {
   if (!req.body?.trim() && !req.subject?.trim() && !req.attachment) {
-    throw new ExtractionError('Provide email text or an attachment to extract from.', 400);
+    throw new HttpError('Provide email text or an attachment to extract from.', 400);
   }
 
   const response = await getClient().beta.messages.parse({
@@ -136,13 +128,13 @@ export async function extractInvoice(req: ExtractRequest): Promise<Extraction> {
   });
 
   if (response.stop_reason === 'refusal') {
-    throw new ExtractionError('The model declined to process this content.');
+    throw new HttpError('The model declined to process this content.');
   }
   if (response.stop_reason === 'max_tokens') {
-    throw new ExtractionError('The response was cut off before the extraction finished.', 502);
+    throw new HttpError('The response was cut off before the extraction finished.', 502);
   }
   if (!response.parsed_output) {
-    throw new ExtractionError('The model did not return valid invoice data.', 502);
+    throw new HttpError('The model did not return valid invoice data.', 502);
   }
   return response.parsed_output;
 }

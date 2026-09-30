@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { AlertTriangle, FileUp, Loader2, Sparkles, X } from 'lucide-react';
 import { useAppStore } from '../store';
 import { ExtractionInput, Invoice, InvoiceExtraction } from '../types';
-import { fileToBase64, requestExtraction } from '../lib/extractApi';
+import { fileToBase64, requestExtraction } from '../lib/api';
 import ExtractionResultCard from './ExtractionResultCard';
 
 const ACCEPTED_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'image/gif', 'image/webp'];
@@ -59,8 +59,13 @@ const InvoiceExtractor: React.FC = () => {
     }
   };
 
-  const handleSave = () => {
-    if (extraction) setSavedInvoice(addInvoiceFromExtraction(extraction));
+  const handleSave = async () => {
+    if (!extraction) return;
+    try {
+      setSavedInvoice(await addInvoiceFromExtraction(extraction));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save the invoice');
+    }
   };
 
   const inputClass =
