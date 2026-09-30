@@ -7,13 +7,55 @@ import {
   RefreshCw, 
   CheckCircle, 
   AlertTriangle,
-  FileText
+  FileText,
+  Sparkles,
+  Loader2
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { Email, InvoiceExtraction } from '../types';
+import { requestExtraction } from '../lib/extractApi';
+import ExtractionResultCard from './ExtractionResultCard';
+
+type ExtractionState =
+  | { status: 'loading' }
+  | { status: 'done'; extraction: InvoiceExtraction }
+  | { status: 'error'; message: string };
 
 const EmailList: React.FC = () => {
-  const { emails, invoices, isLoading } = useAppStore();
+  const { emails, invoices, isLoading, addInvoiceFromExtraction } = useAppStore();
   const [searchQuery, setSearchQuery] = useState('');
+  const [extractions, setExtractions] = useState<Record<string, ExtractionState>>({});
+  const [isScanning, setIsScanning] = useState(false);
+
+  const hasInvoice = (emailId: string) => invoices.some(inv => inv.emailId === emailId);
+  const unprocessedEmails = emails.filter(
+    email => !hasInvoice(email.id) && extractions[email.id]?.status !== 'done'
+  );
+
+  const extractEmail = async (email: Email) => {
+    setExtractions(prev => ({ ...prev, [email.id]: { status: 'loading' } }));
+    try {
+      const extraction = await requestExtraction({
+        from: email.from,
+        subject: email.subject,
+        receivedAt: email.receivedAt,
+        body: email.snippet,
+      });
+      setExtractions(prev => ({ ...prev, [email.id]: { status: 'done', extraction } }));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Extraction failed';
+      setExtractions(prev => ({ ...prev, [email.id]: { status: 'error', message } }));
+    }
+  };
+
+  const scanInbox = async () => {
+    setIsScanning(true);
+    // Sequential keeps the demo well under API rate limits
+    for (const email of unprocessedEmails) {
+      await extractEmail(email);
+    }
+    setIsScanning(false);
+  };
   
   const filteredEmails = emails.filter(email => {
     if (!searchQuery) return true;
@@ -56,6 +98,30 @@ const EmailList: React.FC = () => {
     }
   };
 
+  const renderExtraction = (email: Email) => {
+    const state = extractions[email.id];
+    if (!state || state.status === 'loading') return null;
+    if (state.status === 'error') {
+      return (
+        <div className="mt-3 flex items-center justify-between rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+          <span>{state.message}</span>
+          <button type="button" onClick={() => extractEmail(email)} className="ml-3 font-medium underline">
+            Retry
+          </button>
+        </div>
+      );
+    }
+    return (
+      <div className="mt-3">
+        <ExtractionResultCard
+          extraction={state.extraction}
+          saved={hasInvoice(email.id)}
+          onSave={() => addInvoiceFromExtraction(state.extraction, email.id)}
+        />
+      </div>
+    );
+  };
+
   return (
     <div>
       <div className="mb-6">
@@ -81,14 +147,30 @@ const EmailList: React.FC = () => {
               />
             </div>
             
-            <button
-              type="button"
-              className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-              disabled={isLoading}
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
-            </button>
+            <div className="flex space-x-3">
+              <button
+                type="button"
+                onClick={scanInbox}
+                className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isScanning || unprocessedEmails.length === 0}
+                title="Run the AI extractor on every email that has no invoice yet"
+              >
+                {isScanning ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4 mr-2" />
+                )}
+                Scan with AI ({unprocessedEmails.length})
+              </button>
+              <button
+                type="button"
+                className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                disabled={isLoading}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+            </div>
           </div>
         </div>
         
@@ -130,9 +212,27 @@ const EmailList: React.FC = () => {
                             </span>
                           )}
                           {getInvoiceStatus(email.id)}
+                          {!hasInvoice(email.id) && !extractions[email.id] && (
+                            <button
+                              type="button"
+                              onClick={() => extractEmail(email)}
+                              disabled={isScanning}
+                              className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-700 hover:bg-indigo-200 disabled:opacity-50"
+                            >
+                              <Sparkles className="mr-1 h-3 w-3" />
+                              Extract
+                            </button>
+                          )}
+                          {extractions[email.id]?.status === 'loading' && (
+                            <span className="inline-flex items-center text-xs text-indigo-600">
+                              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                              Extracting…
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
+                    {renderExtraction(email)}
                   </div>
                 </li>
               ))

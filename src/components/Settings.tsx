@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useAppStore } from '../store';
 import { 
   User, 
-  Mail, 
   Lock, 
   Bell, 
   CreditCard, 

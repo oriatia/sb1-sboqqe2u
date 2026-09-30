@@ -14,6 +14,7 @@ import {
   Mail
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { InvoiceSortField } from '../types';
 
 const InvoiceList: React.FC = () => {
   const { 
@@ -76,7 +77,7 @@ const InvoiceList: React.FC = () => {
       });
   }, [invoices, filterStatus, searchQuery, sortBy, sortDirection]);
   
-  const handleSort = (field: string) => {
+  const handleSort = (field: InvoiceSortField) => {
     if (sortBy === field) {
       toggleSortDirection();
     } else {

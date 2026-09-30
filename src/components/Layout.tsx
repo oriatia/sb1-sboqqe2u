@@ -5,6 +5,7 @@ import {
   LayoutDashboard, 
   FileText, 
   Mail, 
+  Sparkles,
   Settings, 
   LogOut, 
   Menu, 
@@ -20,6 +21,7 @@ const Layout: React.FC = () => {
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
     { name: 'Invoices', href: '/invoices', icon: FileText },
     { name: 'Email', href: '/emails', icon: Mail },
+    { name: 'AI Extractor', href: '/extract', icon: Sparkles },
     { name: 'Settings', href: '/settings', icon: Settings },
   ];
 

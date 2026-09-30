@@ -27,3 +27,33 @@ export interface User {
   email: string;
   avatar: string;
 }
+export type InvoiceStatusFilter = 'all' | Invoice['status'];
+export type InvoiceSortField = 'vendor' | 'amount' | 'date' | 'dueDate';
+
+// Mirrors ExtractionSchema in server/extract.ts
+export interface InvoiceExtraction {
+  is_invoice: boolean;
+  vendor: string | null;
+  invoice_number: string | null;
+  amount: number | null;
+  tax_amount: number | null;
+  currency: string | null;
+  invoice_date: string | null;
+  due_date: string | null;
+  status_hint: 'paid' | 'unpaid' | 'unknown';
+  category: string;
+  confidence: 'high' | 'medium' | 'low';
+  notes: string;
+}
+
+export interface ExtractionInput {
+  from?: string;
+  subject?: string;
+  receivedAt?: string;
+  body?: string;
+  attachment?: {
+    name?: string;
+    mediaType: string;
+    data: string;
+  };
+}
