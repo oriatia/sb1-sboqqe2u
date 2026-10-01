@@ -8,6 +8,7 @@ import InvoiceList from './components/InvoiceList';
 import InvoiceDetail from './components/InvoiceDetail';
 import EmailList from './components/EmailList';
 import Settings from './components/Settings';
+import InvoiceExtractor from './components/InvoiceExtractor';
 
 const App: React.FC = () => {
   const { isAuthenticated } = useAppStore();
@@ -35,6 +36,10 @@ const App: React.FC = () => {
           <Route 
             path="/emails" 
             element={isAuthenticated ? <EmailList /> : <Navigate to="/login" />} 
+          />
+          <Route 
+            path="/extract" 
+            element={isAuthenticated ? <InvoiceExtractor /> : <Navigate to="/login" />} 
           />
           <Route 
             path="/settings" 

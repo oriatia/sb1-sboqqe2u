@@ -9,14 +9,14 @@ import {
   AlertTriangle,
   CheckCircle,
   Clock,
-  BarChart3
+  BarChart3,
+  Mail
 } from 'lucide-react';
 import { format } from 'date-fns';
 
 const Dashboard: React.FC = () => {
   const { invoices } = useAppStore();
   
-  const totalAmount = invoices.reduce((sum, invoice) => sum + invoice.amount, 0);
   const paidAmount = invoices
     .filter(invoice => invoice.status === 'paid')
     .reduce((sum, invoice) => sum + invoice.amount, 0);

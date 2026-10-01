@@ -148,4 +148,22 @@ export const mockEmails: Email[] = [
     isRead: true,
     snippet: 'Your Zoom Pro subscription has been processed. Amount: $14.99 USD.',
   },
+  {
+    id: 'e8',
+    from: 'invoices@iec.co.il',
+    subject: 'חשבון החשמל שלך מוכן',
+    receivedAt: formatDate(subDays(today, 2)),
+    hasAttachment: false,
+    isRead: false,
+    snippet: 'שלום, חשבון החשמל לתקופה 07/2026-08/2026 מוכן. מספר חשבונית 5520981. סכום לתשלום: ₪412.60 כולל מע"מ (₪62.94). מועד אחרון לתשלום: ' + format(addDays(today, 20), 'dd/MM/yyyy') + '.',
+  },
+  {
+    id: 'e9',
+    from: 'news@figma.com',
+    subject: 'What’s new in Figma this month',
+    receivedAt: formatDate(subDays(today, 1)),
+    hasAttachment: false,
+    isRead: false,
+    snippet: 'Catch up on the latest features: dev mode improvements, new plugins and upcoming community events.',
+  },
 ];
