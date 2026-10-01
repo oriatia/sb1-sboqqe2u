@@ -1,3 +1,4 @@
+import './env';
 import { createServer, IncomingMessage, ServerResponse } from 'node:http';
 import Anthropic from '@anthropic-ai/sdk';
 import type { Invoice } from '../src/types';
@@ -100,8 +101,15 @@ const routes: [string, RegExp, Handler][] = [
     'GET',
     /^\/api\/gmail\/status$/,
     async () => {
-      const { lastScanAt } = await loadStore();
-      return { configured: isGmailConfigured(), ...(await gmailAccount()), lastScanAt, schedule: schedulerInfo() };
+      const { lastScanAt, lastScanError, gmailDisconnectReason } = await loadStore();
+      return {
+        configured: isGmailConfigured(),
+        ...(await gmailAccount()),
+        lastScanAt,
+        lastScanError,
+        disconnectReason: gmailDisconnectReason,
+        schedule: schedulerInfo(),
+      };
     },
   ],
   ['GET', /^\/api\/gmail\/messages$/, async () => ({ emails: await listInvoiceEmails() })],

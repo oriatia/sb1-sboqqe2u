@@ -64,7 +64,15 @@ const GmailPanel: React.FC<GmailPanelProps> = ({ notice }) => {
           </div>
         ) : !gmail.connected ? (
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <p className="text-sm text-gray-600">Connect your Gmail account to find invoices in your real inbox.</p>
+            <div className="text-sm text-gray-600">
+              {gmail.disconnectReason && (
+                <p className="mb-1 flex items-start text-amber-700">
+                  <AlertTriangle className="mr-1.5 mt-0.5 h-4 w-4 flex-shrink-0" />
+                  {gmail.disconnectReason}
+                </p>
+              )}
+              <p>Connect your Gmail account to find invoices in your real inbox.</p>
+            </div>
             <a
               href="/api/gmail/connect"
               className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
@@ -87,6 +95,12 @@ const GmailPanel: React.FC<GmailPanelProps> = ({ notice }) => {
                   : 'Daily scan is off'}
                 {gmail.lastScanAt && ` · last scan ${format(new Date(gmail.lastScanAt), 'MMM d, HH:mm')}`}
               </p>
+              {gmail.lastScanError && (
+                <p className="flex items-start text-amber-700">
+                  <AlertTriangle className="h-4 w-4 mr-1.5 mt-0.5 flex-shrink-0" />
+                  Last scan problem: {gmail.lastScanError}
+                </p>
+              )}
             </div>
             <button
               type="button"

@@ -64,6 +64,8 @@ export interface GmailStatus {
   connected: boolean;
   email?: string;
   lastScanAt?: string;
+  lastScanError?: string;
+  disconnectReason?: string;
   schedule: { enabled: boolean; time: string; timezone: string };
 }
 

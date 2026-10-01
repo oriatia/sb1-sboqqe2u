@@ -82,7 +82,9 @@ async function tokenRequest(params: Record<string, string>): Promise<TokenRespon
   };
   if (!response.ok) {
     if (body.error === 'invalid_grant') {
-      await disconnectGmail();
+      await disconnectGmail(
+        'Google ended Gmail access (it expires after 7 days while the Google app is in Testing mode). Connect again.',
+      );
       throw new HttpError('Gmail access was revoked or expired. Connect Gmail again.', 401);
     }
     throw new HttpError(`Google token request failed: ${body.error_description ?? body.error ?? response.status}`, 502);
@@ -99,6 +101,8 @@ export async function completeAuth(code: string, state: string) {
   if (!token.refresh_token) throw new HttpError('Google did not return a refresh token. Try connecting again.', 502);
 
   await updateStore(data => {
+    delete data.gmailDisconnectReason;
+    delete data.lastScanError;
     data.gmail = {
       refresh_token: token.refresh_token!,
       access_token: token.access_token,
@@ -111,9 +115,10 @@ export async function completeAuth(code: string, state: string) {
   });
 }
 
-export async function disconnectGmail() {
+export async function disconnectGmail(reason?: string) {
   await updateStore(data => {
     delete data.gmail;
+    data.gmailDisconnectReason = reason;
   });
 }
 

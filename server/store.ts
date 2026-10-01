@@ -19,6 +19,8 @@ export interface StoreData {
   processedMessageIds: string[];
   lastScanAt?: string;
   lastAutoScanDate?: string;
+  lastScanError?: string; // cleared by the next successful scan
+  gmailDisconnectReason?: string; // set when Google revokes or expires access
 }
 
 let cache: StoreData | null = null;

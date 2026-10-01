@@ -13,9 +13,12 @@ The app includes an invoice extraction agent powered by Claude. It reads an emai
 
 ### Setup
 
+Requires Node 20.12 or newer.
+
 ```bash
 npm install
 cp .env.example .env   # put your key in ANTHROPIC_API_KEY
+npm run check-setup    # verifies the key and Google settings (no tokens spent)
 npm run dev            # starts the web app (5173) and the API server (8787)
 ```
 
@@ -26,7 +29,7 @@ npm run dev            # starts the web app (5173) and the API server (8787)
 3. Under **Clients**, create an OAuth client of type **Web application** with the authorized redirect URI `http://localhost:5173/api/gmail/callback`.
 4. Put the client ID and secret in `.env` as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, restart `npm run dev`, and click **Connect Gmail** on the Email page.
 
-The refresh token and saved invoices are stored in `.data/store.json` (git-ignored, readable only by your user). **Disconnect** removes the token. While the Google app is in *Testing* mode, Google expires the refresh token after 7 days, so you will need to reconnect weekly (or publish the app).
+The refresh token and saved invoices are stored in `.data/store.json` (git-ignored, readable only by your user). **Disconnect** removes the token. While the Google app is in *Testing* mode, Google expires the refresh token after 7 days; the Gmail panel then says so and shows **Connect Gmail** again. To avoid the weekly reconnect, publish the Google app (*Audience → Publish app*). If a daily scan fails for any reason, the panel shows the last problem until the next successful scan.
 
 ### How it fits together
 
@@ -43,6 +46,7 @@ The Anthropic API key and the Gmail token stay on the server (`server/`). The br
 | --- | --- |
 | `npm run dev` | Web app and API server together |
 | `npm run dev:api` / `npm run start:api` | The API server alone (watch mode / plain) |
+| `npm run check-setup` | Checks Node, the Anthropic key and the Google settings |
 | `npm run typecheck` | Type-checks the app and the server |
 
 Each scan sends only new messages to Claude, one request per email.

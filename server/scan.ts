@@ -16,9 +16,18 @@ let running: Promise<ScanResult> | null = null;
 
 /** Extracts invoices from Gmail messages that have not been processed yet and saves them. */
 export function scanInbox(): Promise<ScanResult> {
-  running ??= runScan().finally(() => {
-    running = null;
-  });
+  running ??= runScan()
+    .catch(async error => {
+      // Surfaced in the Gmail panel, since the daily scan runs unattended
+      const message = error instanceof Error ? error.message : String(error);
+      await updateStore(data => {
+        data.lastScanError = message;
+      });
+      throw error;
+    })
+    .finally(() => {
+      running = null;
+    });
   return running;
 }
 
@@ -56,6 +65,7 @@ async function runScan(): Promise<ScanResult> {
   await updateStore(store => {
     store.processedMessageIds.push(...done);
     store.lastScanAt = finishedAt;
+    store.lastScanError = failed ? `${failed} email(s) could not be processed; they will be retried.` : undefined;
   });
 
   const result = { checked: fresh.length, saved, skipped, failed, finishedAt };
